@@ -1,0 +1,24 @@
+# --- Project Specifics ---
+# We keep /src because we want to track generated code for manual tweaks
+# We ignore /dist because it contains generated binary zip files
+dist/
+
+# --- PHP/Composer ---
+vendor/
+.phpunit.result.cache
+
+# --- OS Specific ---
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# --- IDEs/Editors ---
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# --- Logs ---
+*.log
+error_log
