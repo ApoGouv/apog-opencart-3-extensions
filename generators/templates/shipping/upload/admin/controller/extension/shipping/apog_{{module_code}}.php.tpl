@@ -1,11 +1,9 @@
 <?php
 /**
- * Include the shared traits manually.
- * OC3 does not natively autoload custom namespaces from the library folder.
+ * Include our library bootstrap to set up autoloading and any necessary initialization.
+ * This ensures that all Apog traits and helper classes are available for use in this controller.
  */
-require_once(DIR_SYSTEM . 'library/apog/traits/back/controller/controller_helper.php');
-require_once(DIR_SYSTEM . 'library/apog/traits/back/controller/config_helper.php');
-require_once(DIR_SYSTEM . 'library/apog/traits/back/controller/form_options.php');
+require_once(DIR_SYSTEM . 'library/apog/bootstrap.php');
 
 /**
  * Class ControllerExtensionShippingApog{{ClassName}}
@@ -23,9 +21,9 @@ require_once(DIR_SYSTEM . 'library/apog/traits/back/controller/form_options.php'
  * - FormOptionsTrait: Dropdown and auxiliary data (stores, geo zones, etc.)
  */
 class ControllerExtensionShippingApog{{ClassName}} extends Controller {
-    use \Apog\Traits\Back\Controller\ControllerHelperTrait;
-    use \Apog\Traits\Back\Controller\ConfigHelperTrait;
-    use \Apog\Traits\Back\Controller\FormOptionsTrait;
+    use Apog\Traits\Back\Controller\ControllerHelperTrait;
+    use Apog\Traits\Back\Controller\ConfigHelperTrait;
+    use Apog\Traits\Back\Controller\FormOptionsTrait;
 
     /**
      * @var string $ext_type The OpenCart extension type (e.g. 'shipping', 'payment', 'total').
@@ -68,7 +66,8 @@ class ControllerExtensionShippingApog{{ClassName}} extends Controller {
             'excluded_payments'        => [],
             'tax_class_id'             => 0,
             'status'                   => 0,
-            'sort_order'               => 0
+            'sort_order'               => 0,
+            'enable_logging'           => 0,
         ];
 
         // --- Phase 2: Request Handling ---

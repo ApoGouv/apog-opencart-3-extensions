@@ -6,12 +6,15 @@
  * Responsible for returning shipping quotes during checkout.
  */
 
-// Manually include the helper since OC3 doesn't autoload custom library namespaces
-if (!class_exists('\Apog\ShippingHelper')) {
-    require_once(DIR_SYSTEM . 'library/apog/shipping_helper.php');
-}
+/**
+ * Include our library bootstrap to set up autoloading and any necessary initialization.
+ */
+require_once(DIR_SYSTEM . 'library/apog/bootstrap.php');
+
+use Apog\Core\Shipping\ShippingService;
 
 class ModelExtensionShippingApog{{ClassName}} extends Model {
+
 
     /**
      * @var string Unique module code
@@ -30,10 +33,10 @@ class ModelExtensionShippingApog{{ClassName}} extends Model {
         $this->load->language('extension/shipping/' . $this->module_code);
 
         // Utilize the Apog Shipping Helper for core logic
-        $shippingHelper = new \Apog\ShippingHelper($this->registry);
-        $result = $shippingHelper->getMethodData($this->module_code, $address);
+        $shippingService = new ShippingService($this->registry, $this->module_code);
+        $result = $shippingService->getQuote($address);
 
-        if (!$result) {
+        if (empty($result)) {
             return [];
         }
 

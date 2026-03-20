@@ -20,12 +20,14 @@ $_['entry_total_free']               = 'Free Shipping Total';
 $_['entry_excluded_stores']          = 'Disabled for Stores';
 $_['entry_excluded_customer_groups'] = 'Disabled for Customer Groups';
 $_['entry_excluded_payments']        = 'Disabled for Payment Methods';
+$_['entry_enable_logging']           = 'Enable Debug Logging';
     
 // Help
 $_['help_excluded_stores']          = 'Disable this shipping method on selected stores.';
 $_['help_excluded_customer_groups'] = 'Disable this shipping method on selected customer groups.';
 $_['help_excluded_payments']        = 'Disable this shipping method on selected payment methods.';
 $_['help_total_free']               = 'Minimum order amount required for free shipping in this zone.';
+$_['help_enable_logging']           = 'Enable debug logging for this shipping module. Useful for troubleshooting.';
 
 // Error
 $_['error_permission'] = 'Warning: You do not have permission to modify ' . $_['shipping_name'] . ' shipping!';
