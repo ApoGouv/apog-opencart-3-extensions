@@ -302,7 +302,7 @@ switch ($type) {
     case 'core':
         $moduleName = 'apog_core';
 
-        buildModule($moduleName, $srcDir, $srcDir);
+        buildModule($moduleName, $srcDir, $distDir);
         break;
 
     case 'shipping':
@@ -318,7 +318,7 @@ switch ($type) {
         }
 
         $moduleName = "apog_shipping_$code";
-        buildModule($moduleName, $srcDir, $srcDir);
+        buildModule($moduleName, $srcDir, $distDir);
         break;
 
     default:
