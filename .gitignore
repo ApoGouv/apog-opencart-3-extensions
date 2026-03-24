@@ -2,6 +2,7 @@
 # We keep /src because we want to track generated code for manual tweaks
 # We ignore /dist because it contains generated binary zip files
 dist/
+*.zip
 
 # --- PHP/Composer ---
 vendor/
