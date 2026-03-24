@@ -74,9 +74,6 @@ class ControllerExtensionShippingApogStorePickup extends Controller {
         $this->load->language('extension/' . $this->ext_type . '/' . $this->module_code);
         $this->document->setTitle($this->language->get('heading_title'));
 
-        // Add custom admin CSS
-        $this->document->addStyle('view/stylesheet/apog_shipping.css');
-
         $this->load->model('setting/setting');
 
         // Check if form was submitted and user has modify permissions
