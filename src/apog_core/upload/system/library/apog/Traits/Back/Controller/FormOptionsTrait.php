@@ -122,11 +122,11 @@ trait FormOptionsTrait
     {
         $settings = [];
         foreach ($geo_zones as $geo_zone) {
-            $gz_id = $geo_zone['geo_zone_id'];
-            $settings[$gz_id] = [];
+            $geoZoneId = $geo_zone['geo_zone_id'];
+            $settings[$geoZoneId] = [];
 
             foreach ($fields as $field => $default) {
-                $settings[$gz_id][$field] = $this->getConfigValue($gz_id . '_' . $field, $default);
+                $settings[$geoZoneId][$field] = $this->getConfigValue($geoZoneId . '_' . $field, $default);
             }
         }
 
