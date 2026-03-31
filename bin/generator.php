@@ -307,6 +307,60 @@ switch ($type) {
         printFooter($config);
         break;
 
+    case 'payment':
+        if ($argc < 4) {
+            outAndExit("ℹ️  Usage: php bin/generator.php payment <code> \"Name\" [--force]");
+        }
+
+        $rawModuleCode = $argv[2];
+        $moduleName    = trim($argv[3]);
+
+        $moduleCode = normalizeCode($rawModuleCode);
+
+        if (empty($moduleCode) || strlen($moduleCode) < 3) {
+            outAndExit("❌ Module code must be at least 3 characters.");
+        }
+
+        if (trim($moduleName) === '') {
+            outAndExit("❌ Module name cannot be empty.");
+        }
+
+        $className = generateClassName($moduleCode);
+        $target    = $srcDir . "apog_payment_{$moduleCode}";
+
+        $vars = [
+            '{{ext_type}}'     => 'payment',
+            '{{module_code}}'  => $moduleCode,
+            '{{module_name}}'  => $moduleName,
+            '{{ClassName}}'    => $className,
+        ];
+
+        $config = [
+            'type'   => 'payment',
+            'name'   => $moduleName,
+            'code'   => $moduleCode,
+            'target' => $target,
+        ];
+
+        $startTime = microtime(true);
+
+        printHeader($config);
+
+        $fileCount = generate(
+            $baseDir . 'generators/templates/payment',
+            $target,
+            $vars,
+            $force
+        );
+
+        $elapsedTimeInSeconds = round(microtime(true) - $startTime, 3);
+
+        $config['fileCount'] = $fileCount;
+        $config['elapsedTime'] = $elapsedTimeInSeconds;
+
+        printFooter($config);
+        break;
+
     default:
-        outAndExit("❌ Error: Unknown type '$type'. Use 'core' or 'shipping'.");
+        outAndExit("❌ Error: Unknown type '$type'. Use 'core', 'shipping' or 'payment'.");
 }
