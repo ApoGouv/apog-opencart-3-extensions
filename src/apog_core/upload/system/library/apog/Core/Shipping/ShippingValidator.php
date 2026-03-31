@@ -2,43 +2,50 @@
 
 namespace Apog\Core\Shipping;
 
-use Apog\Core\Shipping\ApogShippingBase;
+use Apog\Core\ApogExtensionBase;
 
 /**
  * Class ShippingValidator
  *
- * Validates whether a specific shipping module is available based on:
- * - Global module status
+ * Handles all business rules for shipping availability.
+ *
+ * Validation rules:
+ * - Module enabled status
  * - Store restrictions
  * - Customer group restrictions
  * - Payment method restrictions
  * 
- * Extends ApogShippingBase to inherit registry, module code, config helper, and logging functionality.
+ * @extends ApogExtensionBase to inherit registry, module code, config helper, and logging functionality.
  *
  * @package Apog\Core\Shipping
  */
-class ShippingValidator extends ApogShippingBase {
+class ShippingValidator extends ApogExtensionBase {
 
     /**
      * ShippingValidator constructor.
      *
      * @param \Registry $registry OpenCart registry
-     * @param string $code Unique shipping module code
+     * @param string $moduleCode Unique shipping module code (e.g. 'apog_same_day')
      */
-    public function __construct($registry, string $code) {
-        parent::__construct($registry, $code);
+    public function __construct($registry, string $moduleCode) {
+        parent::__construct($registry, $moduleCode, 'shipping');
     }
 
     /**
-     * Returns true if the shipping module is available for the current context
+     * Determines whether shipping method is available.
      *
      * @return bool
      */
     public function isAvailable(): bool {
-        return $this->isEnabled()
-            && $this->isStoreAllowed()
-            && $this->isCustomerGroupAllowed()
-            && $this->isPaymentAllowed();
+        if (!$this->isEnabled()) return false;
+
+        if (!$this->isStoreAllowed()) return false;
+
+        if (!$this->isCustomerGroupAllowed()) return false;
+
+        if (!$this->isPaymentMethodAllowed()) return false;
+
+        return true;
     }
 
     /**
@@ -47,10 +54,10 @@ class ShippingValidator extends ApogShippingBase {
      * @return bool
      */
     private function isEnabled(): bool {
-        $isEnabled = (bool)$this->cfg("status");
+        $isEnabled = (bool)$this->cfg("status", 0);
 
         if (!$isEnabled) {
-            $this->log("Shipping method '{$this->code}' is disabled", 'debug');
+            $this->log("Shipping method '{$this->moduleCode}' is disabled", 'debug');
         }
 
         return $isEnabled;
@@ -62,7 +69,7 @@ class ShippingValidator extends ApogShippingBase {
      * @return bool
      */
     private function isStoreAllowed(): bool {
-        $excluded_stores = array_map('intval', (array)$this->cfg("excluded_stores"));
+        $excluded_stores = array_map('intval', (array)$this->cfg("excluded_stores", []));
         $store_id = (int)$this->config->get('config_store_id');
 
         // Allowed if no exclusions OR current store is not excluded
@@ -81,7 +88,7 @@ class ShippingValidator extends ApogShippingBase {
      * @return bool
      */
     private function isCustomerGroupAllowed(): bool {
-        $excluded_groups = array_map('intval', (array)$this->cfg("excluded_customer_groups"));
+        $excluded_groups = array_map('intval', (array)$this->cfg("excluded_customer_groups", []));
 
         $group_id = $this->customer->isLogged()
             ? $this->customer->getGroupId()
@@ -101,8 +108,8 @@ class ShippingValidator extends ApogShippingBase {
      *
      * @return bool
      */
-    private function isPaymentAllowed(): bool {
-        $excluded_payments = (array)$this->cfg("excluded_payments");
+    private function isPaymentMethodAllowed(): bool {
+        $excluded_payments = (array)$this->cfg("excluded_payments", []);
 
         // If no restrictions, it's allowed
         if (empty($excluded_payments)) return true;
@@ -114,13 +121,19 @@ class ShippingValidator extends ApogShippingBase {
         // If payment method not set yet (checkout not started), allow
         if (!$currentPaymentMethod) return true;
 
-        $allowed = !in_array($currentPaymentMethod, $excluded_payments, true);
+        $basePaymentCode = $this->getBaseMethodCode($currentPaymentMethod);
 
-        if (!$allowed) {
-            $this->log("Payment method '{$currentPaymentMethod}' is excluded: [" . implode(',', $excluded_payments) . "]", 'debug');
+        $isExcluded = in_array($currentPaymentMethod, $excluded_payments, true)
+            || in_array($basePaymentCode, $excluded_payments, true);
+
+        if ($isExcluded) {
+            $this->log(
+                "Payment '{$currentPaymentMethod}' (base: '{$basePaymentCode}') is excluded: [" . implode(',', $excluded_payments) . "]",
+                'debug'
+            );
         }
 
-        return $allowed;
+        return !$isExcluded;
     }
 
 }

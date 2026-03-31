@@ -71,6 +71,40 @@ trait FormOptionsTrait
     }
 
     /**
+     * Fetches all installed shipping methods and their localized titles.
+     *
+     * @return array Array of shipping methods with 'code' and 'name'.
+     */
+    protected function loadShippingMethods() {
+        $this->load->model('setting/extension');
+
+        $methods = [];
+
+        $extensions = $this->model_setting_extension->getInstalled('shipping');
+
+        foreach ($extensions as $code) {
+            $this->load->language('extension/shipping/' . $code);
+
+            $methods[] = [
+                'code' => $code,
+                'name' => $this->language->get('heading_title')
+            ];
+        }
+
+        return $methods;
+    }
+
+    /**
+     * Loads and returns all available order statuses.
+     *
+     * @return array List of order statuses.
+     */
+    protected function loadOrderStatuses() {
+        $this->load->model('localisation/order_status');
+        return $this->model_localisation_order_status->getOrderStatuses();
+    }
+
+    /**
      * Load all stores for the store restriction setting.
      *
      * Returns an array of stores including the default store (store_id = 0).
@@ -122,11 +156,11 @@ trait FormOptionsTrait
     {
         $settings = [];
         foreach ($geo_zones as $geo_zone) {
-            $geoZoneId = $geo_zone['geo_zone_id'];
-            $settings[$geoZoneId] = [];
+            $gz_id = $geo_zone['geo_zone_id'];
+            $settings[$gz_id] = [];
 
             foreach ($fields as $field => $default) {
-                $settings[$geoZoneId][$field] = $this->getConfigValue($geoZoneId . '_' . $field, $default);
+                $settings[$gz_id][$field] = $this->getConfigValue($gz_id . '_' . $field, $default);
             }
         }
 

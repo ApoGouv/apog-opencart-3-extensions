@@ -2,80 +2,90 @@
 
 namespace Apog\Core\Shipping;
 
-use Apog\Core\Shipping\ApogShippingBase;
+use Apog\Core\ApogExtensionBase;
 
 /**
  * Class ShippingCostCalculator
  *
- * Calculates the shipping cost for a given set of Geo Zones.
- * Handles multiple zones, applies free shipping thresholds, and can log detailed calculation steps.
+ * Responsible for calculating the final shipping cost
+ * based on applicable geo zones and configuration rules.
+ *
+ * Features:
+ * - Supports multiple geo zones
+ * - Applies per-zone enable/disable logic
+ * - Applies free shipping thresholds
+ * - Selects the lowest applicable cost (OpenCart standard behavior)
  * 
- * Extends ApogShippingBase to inherit registry, module code, config helper, and logging functionality.
+ * @extends ApogExtensionBase to inherit registry, module code, config helper, and logging functionality.
  *
  * @package Apog\Core\Shipping
  */
-class ShippingCostCalculator extends ApogShippingBase {
+class ShippingCostCalculator extends ApogExtensionBase {
 
     /**
      * ShippingCostCalculator constructor.
      *
      * @param \Registry $registry OpenCart registry
-     * @param string $code Unique shipping module code
+     * @param string $moduleCode Unique shipping module code (e.g. 'apog_same_day')
      */
-    public function __construct($registry, $code) {
-        parent::__construct($registry, $code);
+    public function __construct($registry, string $moduleCode) {
+        parent::__construct($registry, $moduleCode, 'shipping');
     }
 
     /**
-     * Calculate the shipping cost for the provided Geo Zones
+     * Calculates shipping cost based on matching geo zones.
      *
-     * Applies:
-     * - Geo zone enable/disable status
-     * - Base cost per zone
-     * - Free shipping thresholds
-     * - Returns the lowest applicable cost across zones
+     * @param array $geoZones Array of geo zones (expects 'geo_zone_id' key)
+     * @param float $subTotal Cart subtotal
      *
-     * @param array $geoZones Array of geo zones with 'geo_zone_id' keys
-     *
-     * @return float|null The calculated cost, or null if no zones matched
+     * @return float|null Returns lowest cost or null if unavailable
      */
-    public function calculate($geoZones) {
+    public function calculate(array $geoZones, float $subTotal): ?float {
 
-        $sub_total = $this->cart->getSubTotal();
-        $final_cost = null;
+        $finalCost = null;
 
         foreach ($geoZones as $zone) {
 
-            $gz_id = $zone['geo_zone_id'];
-            $prefix = "shipping_{$this->code}_{$gz_id}";
-
-            if (!$this->cfg("{$gz_id}_status")) {
-                $this->log("Geo Zone {$gz_id} is disabled, skipping.", 'debug');
+            if (!isset($zone['geo_zone_id'])) {
+                $this->log("Invalid geo zone structure: " . json_encode($zone), 'error');
                 continue;
             }
 
-            $cost           = (float)$this->cfg("{$gz_id}_cost");
-            $free_threshold = (float)$this->cfg("{$gz_id}_total_free");
+            $geoZoneId = (int)$zone['geo_zone_id'];
 
-            if ($free_threshold > 0 && $sub_total >= $free_threshold) {
-                $this->log("Sub-total {$sub_total} >= free threshold {$free_threshold} for Geo Zone {$gz_id}, cost set to 0.", 'debug');
+            if (!(bool)$this->cfg("{$geoZoneId}_status", 0)) {
+                $this->log("Geo Zone {$geoZoneId} is disabled, skipping.", 'debug');
+                continue;
+            }
+
+            $cost          = (float)$this->cfg("{$geoZoneId}_cost", 0);
+            $freeThreshold = (float)$this->cfg("{$geoZoneId}_total_free", 0);
+
+            if ($freeThreshold > 0 && $subTotal >= $freeThreshold) {
+                $this->log(
+                    "Free shipping applied (zone {$geoZoneId}): subtotal {$subTotal} >= {$freeThreshold}",
+                    'debug'
+                );
                 $cost = 0.0;
             } else {
-                $this->log("Geo Zone {$gz_id} cost: {$cost}, sub-total: {$sub_total}, free threshold: {$free_threshold}", 'debug');
+                $this->log(
+                    "Zone {$geoZoneId} cost={$cost}, subtotal={$subTotal}, free_threshold={$freeThreshold}",
+                    'debug'
+                );
             }
 
             // If multiple geo zones apply, we take the one with the lowest cost (standard OC logic)
-            if ($final_cost === null || $cost < $final_cost) {
-                $final_cost = $cost;
-                $this->log("Final cost updated to {$final_cost} based on Geo Zone {$gz_id}.", 'debug');
+            if ($finalCost === null || $cost < $finalCost) {
+                $finalCost = $cost;
+                $this->log("Final cost updated to {$finalCost} based on Geo Zone {$geoZoneId}.", 'debug');
             }
         }
 
-        if ($final_cost === null) {
-            $this->log("No matching Geo Zone found or all disabled for module {$this->code}.", 'debug');
+        if ($finalCost === null) {
+            $this->log("No matching Geo Zone found or all disabled for module {$this->moduleCode}.", 'debug');
         }
 
-        return $final_cost;
+        return $finalCost;
     }
 
 }
