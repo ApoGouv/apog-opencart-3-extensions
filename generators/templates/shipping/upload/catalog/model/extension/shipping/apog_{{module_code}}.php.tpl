@@ -1,20 +1,18 @@
 <?php
 /**
- * Class ModelExtensionShippingApog{{ClassName}}
- *
- * Storefront model for the {{module_name}} shipping method.
- * Responsible for returning shipping quotes during checkout.
- */
-
-/**
  * Include our library bootstrap to set up autoloading and any necessary initialization.
  */
 require_once(DIR_SYSTEM . 'library/apog/bootstrap.php');
 
 use Apog\Core\Shipping\ShippingService;
 
+/**
+ * Class ModelExtensionShippingApog{{ClassName}}
+ *
+ * Storefront model for the {{module_name}} shipping method.
+ * Responsible for returning shipping quotes during checkout.
+ */
 class ModelExtensionShippingApog{{ClassName}} extends Model {
-
 
     /**
      * @var string Unique module code

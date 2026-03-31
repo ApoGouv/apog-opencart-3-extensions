@@ -183,10 +183,8 @@
 
                   {# Toggle Logging #}
                   <div class="form-group">
-                    <label class="col-sm-2 control-label" for="input-enable-logging">{{ entry_enable_logging }}
-                      <span data-toggle="tooltip" title="{{ help_enable_logging }}">
-                        <i class="fa fa-info-circle"></i>
-                      </span>
+                    <label class="col-sm-2 control-label" for="input-enable-logging">
+                      <span data-toggle="tooltip" title="{{ help_enable_logging }}">{{ entry_enable_logging }}</span>
                     </label>
                     <div class="col-sm-10">
                       <select name="shipping_{{ module_code }}_enable_logging" id="input-enable-logging" class="form-control">
