@@ -1,16 +1,50 @@
 <?php
+/**
+ * Include our library bootstrap to set up autoloading and any necessary initialization.
+ * This ensures that all Apog traits and helper classes are available for use in this controller.
+ */
 require_once(DIR_SYSTEM . 'library/apog/bootstrap.php');
 
+/**
+ * Class ControllerExtensionPaymentApog{{ClassName}}
+ *
+ * Administrative controller for the {{module_name}} payment module.
+ *
+ * Responsibilities:
+ * - Handles module configuration form rendering and submission
+ * - Loads and prepares configuration data for the admin view
+ * - Integrates shared logic via reusable Apog traits
+ *
+ * Traits used:
+ * - ControllerHelperTrait: UI helpers (breadcrumbs, actions, errors)
+ * - ConfigHelperTrait: Configuration key/value handling
+ * - FormOptionsTrait: Dropdown and auxiliary data (stores, geo zones, etc.)
+ */
 class ControllerExtensionPaymentApog{{ClassName}} extends Controller {
     use Apog\Traits\Back\Controller\ControllerHelperTrait;
     use Apog\Traits\Back\Controller\ConfigHelperTrait;
     use Apog\Traits\Back\Controller\FormOptionsTrait;
 
+    /**
+     * @var string $ext_type The OpenCart extension type (e.g. 'shipping', 'payment', 'total').
+     */
     protected $ext_type = 'payment';
+
+    /**
+     * @var string $module_code Unique identifier for this payment module.
+     * Used as part of configuration keys and database settings: {ext_type}_apog_{module_code}_*
+     */
     protected $module_code = 'apog_{{module_code}}';
 
+    /** @var array Holds validation errors */
     private $error = array();
 
+    /**
+     * Primary entry point for the module settings page.
+     * Handles both the initial page load (GET) and settings updates (POST).
+     * 
+     * @return void
+     */
     public function index() {
         if (!isset($this->ext_type, $this->module_code)) {
             throw new \Exception('Module context not properly defined.');
