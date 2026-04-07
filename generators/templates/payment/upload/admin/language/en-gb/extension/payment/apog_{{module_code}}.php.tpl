@@ -20,8 +20,6 @@ $_['entry_min_total']                 = 'Minimum Total';
 $_['entry_excluded_stores']           = 'Disable for Stores';
 $_['entry_excluded_customer_groups']  = 'Disable for Customer Groups';
 $_['entry_excluded_shipping_methods'] = 'Disable for Shipping Methods';
-
-$_['entry_instructions']              = 'Instructions';
 $_['entry_enable_logging']            = 'Enable Debug Logging';
 
 // Help

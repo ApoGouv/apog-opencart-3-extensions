@@ -20,8 +20,6 @@ $_['entry_min_total']                 = 'Ελάχιστο Ποσό';
 $_['entry_excluded_stores']           = 'Απενεργοποίηση για Καταστήματα';
 $_['entry_excluded_customer_groups']  = 'Απενεργοποίηση για Ομάδες Πελατών';
 $_['entry_excluded_shipping_methods'] = 'Απενεργοποίηση για Τρόπους Αποστολής';
-
-$_['entry_instructions']              = 'Οδηγίες';
 $_['entry_enable_logging']            = 'Ενεργοποίηση Καταγραφής Debug';
 
 // Help
