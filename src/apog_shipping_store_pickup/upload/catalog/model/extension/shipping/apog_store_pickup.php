@@ -40,14 +40,21 @@ class ModelExtensionShippingApogStorePickup extends Model {
             return [];
         }
 
+        // Inject dynamic store name
+        $storeName = $this->config->get('config_name');
+
         $quote_data = [];
         $quote_data[$this->module_code] = [
             'code'         => $this->module_code . '.' . $this->module_code,
-            'title'        => $this->language->get('text_description'),
+            'title'        => sprintf($this->language->get('text_description'), $storeName),
             'cost'         => $result['cost'],
             'tax_class_id' => $result['tax_class_id'],
             'text'         => $this->currency->format(
-                $this->tax->calculate($result['cost'], $result['tax_class_id'], $this->config->get('config_tax')), 
+                $this->tax->calculate(
+                    $result['cost'], 
+                    $result['tax_class_id'], 
+                    $this->config->get('config_tax')
+                ), 
                 $this->session->data['currency']
             )
         ];
