@@ -42,6 +42,33 @@ trait FormOptionsTrait
     }
 
     /**
+     * Returns the localized title of an installed extension safely
+     * without polluting the global language registry.
+     *
+     * This avoids OpenCart language key collisions (e.g. text_edit overrides)
+     * caused by repeatedly calling $this->load->language() inside loops.
+     *
+     * @param string $type  Extension type (e.g. 'shipping', 'payment')
+     * @param string $code  Extension code (folder name)
+     *
+     * @return string Localized extension title or fallback (ucfirst code)
+     */
+    protected function getLocalizedExtensionTitle(string $type, string $code): string
+    {
+        $language = new \Language($this->config->get('config_language'));
+
+        $language->load("extension/{$type}/{$code}");
+
+        $title = $language->get('heading_title');
+
+        if (!$title || $title === 'heading_title') {
+            return ucfirst($code);
+        }
+
+        return $title;
+    }
+
+    /**
      * Fetches all installed payment methods and their localized titles.
      *
      * @return array Array of payment methods with 'code' and 'name'.
@@ -49,21 +76,14 @@ trait FormOptionsTrait
     protected function loadPaymentMethods()
     {
         $this->load->model('setting/extension');
+
         $methods = [];
-
         $extensions = $this->model_setting_extension->getInstalled('payment');
-        foreach ($extensions as $extension) {
-            $this->load->language('extension/payment/' . $extension);
 
-            $name = $this->language->get('heading_title');
-
-            if (!$name || $name === 'heading_title') {
-                $name = ucfirst($extension);
-            }
-
+        foreach ($extensions as $extension_code) {
             $methods[] = [
-                'code' => $extension,
-                'name' => $name
+                'code' => $extension_code,
+                'name' => $this->getLocalizedExtensionTitle('payment', $extension_code)
             ];
         }
 
@@ -79,15 +99,12 @@ trait FormOptionsTrait
         $this->load->model('setting/extension');
 
         $methods = [];
-
         $extensions = $this->model_setting_extension->getInstalled('shipping');
 
-        foreach ($extensions as $code) {
-            $this->load->language('extension/shipping/' . $code);
-
+        foreach ($extensions as $extension_code) {
             $methods[] = [
-                'code' => $code,
-                'name' => $this->language->get('heading_title')
+                'code' => $extension_code,
+                'name' => $this->getLocalizedExtensionTitle('shipping', $extension_code)
             ];
         }
 
