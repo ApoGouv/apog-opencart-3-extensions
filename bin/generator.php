@@ -7,13 +7,46 @@ if (PHP_SAPI !== 'cli') exit("This script must be run from the command line.\n")
 
 if ($argc < 2) {
     echo "ℹ️  Usage:\n";
-    echo "  php bin/generator.php core\n";
-    echo "  php bin/generator.php shipping <code> \"Friendly Name\"\n";
+    echo "  php bin/generator.php core [--force]\n";
+    echo "  php bin/generator.php shipping <code> \"Name\" [--force]\n";
+    echo "  php bin/generator.php payment <code> \"Name\" [--force]\n";
+    echo "  php bin/generator.php total <code> \"Name\" [binding_payment_code] [--force]\n";
     exit(1);
 }
 
-$type = $argv[1];
-$force = in_array('--force', $argv, true);
+/**
+ * Parse CLI arguments into:
+ * - $args  (positional arguments)
+ * - $flags (options like --force)
+ *
+ * This allows flexible ordering of flags without breaking argument positions.
+ */
+$rawArgs = $argv;
+array_shift($rawArgs); // remove script name
+
+$flags = array_filter($rawArgs, fn($arg) => str_starts_with($arg, '--'));
+$args  = array_values(array_filter($rawArgs, fn($arg) => !str_starts_with($arg, '--')));
+
+$force = in_array('--force', $flags, true);
+
+$type           = $args[0] ?? null;
+$rawModuleCode  = $args[1] ?? null;
+$moduleCode     = normalizeCode($rawModuleCode);
+$moduleName     = isset($args[2]) ? trim($args[2]) : null;
+$bindingPaymentInput = $args[3] ?? null;
+$bindingPayment      = normalizeBindingPayment($bindingPaymentInput);
+
+if ('core' !== $type) {
+    if (empty($moduleCode) || strlen($moduleCode) < 3) {
+        outAndExit("❌ Module code must be at least 3 characters.");
+    }
+
+    if (trim($moduleName) === '') {
+        outAndExit("❌ Module name cannot be empty.");
+    }
+}
+
+$className = generateClassName($moduleCode);
 
 $baseDir = dirname(__DIR__) . '/';
 $srcDir  = $baseDir . 'src/';
@@ -77,13 +110,50 @@ function outAndExit($message = '', $exit_code = 0) {
  *
  * @return string Normalized code
  */
-function normalizeCode(string $code): string {
+function normalizeCode(?string $code): string {
+    $code = (string) $code;
     $code = trim($code);
     $code = strtolower($code);
     $code = str_replace(['-', ' '], '_', $code);
     $code = preg_replace('/[^a-z0-9_]/', '', $code); // remove anything weird
     $code = preg_replace('/_+/', '_', $code); // collapse multiple underscores
     return trim($code, '_');
+}
+
+/**
+ * Normalizes a binding payment code for Apog modules.
+ *
+ * Rules:
+ * - Converts empty or whitespace-only values to null
+ * - Ensures the value is prefixed with "apog_"
+ * - Leaves already-prefixed values unchanged
+ *
+ * Examples:
+ *   "cod"        → "apog_cod"
+ *   "apog_cod"   → "apog_cod"
+ *   ""           → null
+ *   null         → null
+ *
+ * @param string|null $bindingPayment Raw binding input from CLI
+ *
+ * @return string|null Normalized binding payment code or null if not provided
+ */
+function normalizeBindingPayment(?string $bindingPayment): ?string {
+    if ($bindingPayment === null) {
+        return null;
+    }
+
+    $bindingPayment = trim($bindingPayment);
+
+    if ($bindingPayment === '') {
+        return null;
+    }
+
+    if (!str_starts_with($bindingPayment, 'apog_')) {
+        $bindingPayment = 'apog_' . $bindingPayment;
+    }
+
+    return $bindingPayment;
 }
 
 /**
@@ -111,6 +181,7 @@ function generateClassName(string $code): string {
  * @param string $src Source template directory
  * @param string $dst Destination directory
  * @param array $vars Key-value replacements (e.g., {{module_code}} → value)
+ * @param bool $force Whether to overwrite existing directory
  *
  * @return int $fileCount Number of files generated
  */
@@ -259,24 +330,10 @@ switch ($type) {
         break;
 
     case 'shipping':
-        if ($argc < 4) {
+        if (count($args) < 3) {
             outAndExit("ℹ️  Usage: php bin/generator.php shipping <code> \"Name\" [--force]");
         }
 
-        $rawModuleCode = $argv[2];
-        $moduleName    = trim($argv[3]);
-
-        $moduleCode = normalizeCode($rawModuleCode);
-
-        if (empty($moduleCode) || strlen($moduleCode) < 3) {
-            outAndExit("❌ Module code must be at least 3 characters.");
-        }
-
-        if (trim($moduleName) === '') {
-            outAndExit("❌ Module name cannot be empty.");
-        }
-
-        $className = generateClassName($moduleCode);
         $target    = $srcDir . "apog_shipping_{$moduleCode}";
 
         $vars = [
@@ -308,24 +365,10 @@ switch ($type) {
         break;
 
     case 'payment':
-        if ($argc < 4) {
+        if (count($args) < 3) {
             outAndExit("ℹ️  Usage: php bin/generator.php payment <code> \"Name\" [--force]");
         }
 
-        $rawModuleCode = $argv[2];
-        $moduleName    = trim($argv[3]);
-
-        $moduleCode = normalizeCode($rawModuleCode);
-
-        if (empty($moduleCode) || strlen($moduleCode) < 3) {
-            outAndExit("❌ Module code must be at least 3 characters.");
-        }
-
-        if (trim($moduleName) === '') {
-            outAndExit("❌ Module name cannot be empty.");
-        }
-
-        $className = generateClassName($moduleCode);
         $target    = $srcDir . "apog_payment_{$moduleCode}";
 
         $vars = [
@@ -361,6 +404,60 @@ switch ($type) {
         printFooter($config);
         break;
 
+    case 'total':
+        if (count($args) < 3) {
+            outAndExit("ℹ️  Usage: php bin/generator.php total <code> \"Name\" [--force]");
+        }
+
+        $target    = $srcDir . "apog_total_{$moduleCode}";
+
+        /**
+         * Optional binding input (future-proof)
+         * example:
+         * php generator.php total cod_fee "COD Fee" cod
+         */
+        out("🔗 Binding : " . ($bindingPayment ?? 'none'));
+
+        if ($bindingPayment !== null && !preg_match('/^apog_[a-z0-9_]+$/', $bindingPayment)) {
+            outAndExit("❌ Invalid binding payment format. Expected: apog_<code>");
+        }
+
+        $vars = [
+            '{{ext_type}}'            => 'total',
+            '{{module_code}}'         => $moduleCode,
+            '{{module_name}}'         => $moduleName,
+            '{{ClassName}}'           => $className,
+            '{{binding_payment_code}}' => $bindingPayment !== null
+                ? "'" . $bindingPayment . "'"
+                : 'null',
+        ];
+
+        $config = [
+            'type'   => 'total',
+            'name'   => $moduleName,
+            'code'   => $moduleCode,
+            'target' => $target,
+        ];
+
+        $startTime = microtime(true);
+
+        printHeader($config);
+
+        $fileCount = generate(
+            $baseDir . 'generators/templates/total',
+            $target,
+            $vars,
+            $force
+        );
+
+        $elapsedTimeInSeconds = round(microtime(true) - $startTime, 3);
+
+        $config['fileCount'] = $fileCount;
+        $config['elapsedTime'] = $elapsedTimeInSeconds;
+
+        printFooter($config);
+
+        break;
     default:
-        outAndExit("❌ Error: Unknown type '$type'. Use 'core', 'shipping' or 'payment'.");
+        outAndExit("❌ Error: Unknown type '$type'. Use 'core', 'shipping', 'payment', or 'total'.");
 }
