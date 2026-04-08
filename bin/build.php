@@ -7,17 +7,35 @@ declare(strict_types=1);
 if (PHP_SAPI !== 'cli') exit("This script must be run from the command line.\n");
 if (!class_exists('ZipArchive')) exit("❌ Error: PHP ZipArchive extension is required.\n");
 
-if ($argc < 2) {
+$rawArgs = $argv;
+array_shift($rawArgs); // remove script name
+
+$flags = array_filter($rawArgs, fn($arg) => str_starts_with($arg, '--'));
+$args  = array_values(array_filter($rawArgs, fn($arg) => !str_starts_with($arg, '--')));
+
+$all     = in_array('--all', $flags, true);
+
+if (empty($args) && !$all) {
     out("ℹ️  Usage:");
     out("  php bin/build.php core");
     out("  php bin/build.php shipping <code>");
+    out("  php bin/build.php payment <code>");
+    out("  php bin/build.php total <code>");
     out("  php bin/build.php --all");
     exit(1);
 }
 
-$type = $argv[1];
+$type    = $args[0] ?? null;
+$rawCode = $args[1] ?? null;
+$code    = normalizeCode($rawCode);
 
-$all = in_array('--all', $argv, true);
+if (!$all && $type === null) {
+    outAndExit("❌ Error: Missing module type.");
+}
+
+if ('core' !== $type) {
+    validateCode($code);
+}
 
 $baseDir = dirname(__DIR__) . '/';
 $srcDir  = $baseDir . 'src/';
@@ -64,13 +82,20 @@ function outAndExit($message = '', $exit_code = 0) {
  *
  * @return string Normalized code
  */
-function normalizeCode(string $code): string {
+function normalizeCode(?string $code): string {
+    $code = (string) $code;
     $code = trim($code);
     $code = strtolower($code);
     $code = str_replace(['-', ' '], '_', $code);
     $code = preg_replace('/[^a-z0-9_]/', '', $code); // remove anything weird
     $code = preg_replace('/_+/', '_', $code); // collapse multiple underscores
     return trim($code, '_');
+}
+
+function validateCode(string $code): void {
+    if ($code === '' || strlen($code) < 3) {
+        outAndExit("❌ Module code must be at least 3 characters.");
+    }
 }
 
 /**
@@ -209,6 +234,8 @@ function printFooter(array $config): void {
  * Supports:
  * - apog_core
  * - apog_shipping_*
+ * - apog_payment_*
+ * - apog_total_*
  *
  * @param string $srcDir Base src directory
  *
@@ -227,7 +254,7 @@ function getAllModules(string $srcDir): array {
         if (!is_dir($fullPath)) continue;
 
         // Only include valid module naming
-        if ($item === 'apog_core' || str_starts_with($item, 'apog_shipping_')) {
+        if ($item === 'apog_core' || preg_match('/^apog_(shipping|payment|total)_/', $item)) {
             $modules[] = $item;
         }
     }
@@ -273,7 +300,7 @@ function buildModule(string $moduleName, string $srcDir, string $distDir): void 
 
 if ($all) {
     out("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    out("🚀 Building ALL modules");
+    out("⚙️ Building all modules");
     out("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     $modules = getAllModules($srcDir);
@@ -306,21 +333,32 @@ switch ($type) {
         break;
 
     case 'shipping':
-        if ($argc < 3) {
-            outAndExit("ℹ️  Usage: php build.php shipping <code>");
-        }
-
-        $rawCode = $argv[2];
-        $code = normalizeCode($rawCode);
-
-        if (empty($code) || strlen($code) < 3) {
-            outAndExit("❌ Module code must be at least 3 characters.");
+        if (count($args) < 2) {
+            outAndExit("ℹ️  Usage: php bin/build.php shipping <code>");
         }
 
         $moduleName = "apog_shipping_$code";
         buildModule($moduleName, $srcDir, $distDir);
         break;
 
+    case 'payment':
+        if (count($args) < 2) {
+            outAndExit("ℹ️  Usage: php bin/build.php payment <code>");
+        }
+
+        $moduleName = "apog_payment_$code";
+        buildModule($moduleName, $srcDir, $distDir);
+        break;
+
+    case 'total':
+        if (count($args) < 2) {
+            outAndExit("ℹ️  Usage: php bin/build.php total <code>");
+        }
+
+        $moduleName = "apog_total_$code";
+        buildModule($moduleName, $srcDir, $distDir);
+        break;
+
     default:
-        outAndExit("❌ Error: Unknown type '$type'. Use 'core' or 'shipping'.");
+        outAndExit("❌ Error: Unknown type '$type'. Use 'core', 'shipping', 'payment', or 'total'.");
 }
