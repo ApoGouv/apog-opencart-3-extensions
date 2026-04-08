@@ -109,10 +109,10 @@ class ShippingValidator extends ApogExtensionBase {
      * @return bool
      */
     private function isPaymentMethodAllowed(): bool {
-        $excluded_payments = (array)$this->cfg("excluded_payments", []);
+        $excluded_payment_methods = (array)$this->cfg("excluded_payment_methods", []);
 
         // If no restrictions, it's allowed
-        if (empty($excluded_payments)) return true;
+        if (empty($excluded_payment_methods)) return true;
 
         $currentPaymentMethod = isset($this->session->data['payment_method']['code']) 
             ? $this->session->data['payment_method']['code'] 
@@ -123,12 +123,12 @@ class ShippingValidator extends ApogExtensionBase {
 
         $basePaymentCode = $this->getBaseMethodCode($currentPaymentMethod);
 
-        $isExcluded = in_array($currentPaymentMethod, $excluded_payments, true)
-            || in_array($basePaymentCode, $excluded_payments, true);
+        $isExcluded = in_array($currentPaymentMethod, $excluded_payment_methods, true)
+            || in_array($basePaymentCode, $excluded_payment_methods, true);
 
         if ($isExcluded) {
             $this->log(
-                "Payment '{$currentPaymentMethod}' (base: '{$basePaymentCode}') is excluded: [" . implode(',', $excluded_payments) . "]",
+                "Payment '{$currentPaymentMethod}' (base: '{$basePaymentCode}') is excluded: [" . implode(',', $excluded_payment_methods) . "]",
                 'debug'
             );
         }

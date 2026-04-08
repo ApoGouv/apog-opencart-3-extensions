@@ -127,7 +127,7 @@
                   {# Payment methods excluded #}
                   <div class="form-group">
                     <label class="col-sm-2 control-label alert alert-danger">
-                      <span data-toggle="tooltip" title="{{ help_excluded_payments }}">{{ entry_excluded_payments }}</span>
+                      <span data-toggle="tooltip" title="{{ help_excluded_payment_methods }}">{{ entry_excluded_payment_methods }}</span>
                     </label>
                     <div class="col-sm-10">
                       <div class="well well-sm" style="height: 150px; overflow: auto;">
@@ -136,9 +136,9 @@
                         <div class="checkbox">
                           <label>
                             <input type="checkbox" 
-                              name="shipping_{{ module_code }}_excluded_payments[]" 
+                              name="shipping_{{ module_code }}_excluded_payment_methods[]" 
                               value="{{ payment.code }}" 
-                              {% if payment.code in _context['shipping_' ~ module_code ~ '_excluded_payments'] %}
+                              {% if payment.code in _context['shipping_' ~ module_code ~ '_excluded_payment_methods'] %}
                                 checked="checked"
                               {% endif %} />
                             {{ payment.name }}

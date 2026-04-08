@@ -63,7 +63,7 @@ class ControllerExtensionShippingApogSameDay extends Controller {
         $global_fields = [
             'excluded_stores'          => [],
             'excluded_customer_groups' => [],
-            'excluded_payments'        => [],
+            'excluded_payment_methods' => [],
             'tax_class_id'             => 0,
             'status'                   => 0,
             'sort_order'               => 0,
