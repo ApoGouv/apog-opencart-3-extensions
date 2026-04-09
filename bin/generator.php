@@ -5,44 +5,33 @@
  */
 if (PHP_SAPI !== 'cli') exit("This script must be run from the command line.\n");
 
-if ($argc < 2) {
+$params = parseNamedArgs($argv);
+
+$type                = $params['type'] ?? null;
+$rawModuleCode       = $params['code'] ?? null;
+$moduleCode          = normalizeCode($rawModuleCode);
+$moduleName          = isset($params['name']) ? trim($params['name']) : null;
+$bindingPaymentInput = $params['binding_payment'] ?? null;
+$bindingPayment      = normalizeBindingPayment($bindingPaymentInput);
+
+$force = !empty($params['force']);
+
+if (!$type) {
     echo "ℹ️  Usage:\n";
-    echo "  php bin/generator.php core [--force]\n";
-    echo "  php bin/generator.php shipping <code> \"Name\" [--force]\n";
-    echo "  php bin/generator.php payment <code> \"Name\" [--force]\n";
-    echo "  php bin/generator.php total <code> \"Name\" [binding_payment_code] [--force]\n";
+    echo "  php bin/generator.php --type=core [--force]\n";
+    echo "  php bin/generator.php --type=shipping --code=<code> --name=\"Name\" [--force]\n";
+    echo "  php bin/generator.php --type=payment  --code=<code> --name=\"Name\" [--force]\n";
+    echo "  php bin/generator.php --type=total    --code=<code> --name=\"Name\" [--binding_payment=<code>] [--force]\n";
     exit(1);
 }
 
-/**
- * Parse CLI arguments into:
- * - $args  (positional arguments)
- * - $flags (options like --force)
- *
- * This allows flexible ordering of flags without breaking argument positions.
- */
-$rawArgs = $argv;
-array_shift($rawArgs); // remove script name
-
-$flags = array_filter($rawArgs, fn($arg) => str_starts_with($arg, '--'));
-$args  = array_values(array_filter($rawArgs, fn($arg) => !str_starts_with($arg, '--')));
-
-$force = in_array('--force', $flags, true);
-
-$type           = $args[0] ?? null;
-$rawModuleCode  = $args[1] ?? null;
-$moduleCode     = normalizeCode($rawModuleCode);
-$moduleName     = isset($args[2]) ? trim($args[2]) : null;
-$bindingPaymentInput = $args[3] ?? null;
-$bindingPayment      = normalizeBindingPayment($bindingPaymentInput);
-
 if ('core' !== $type) {
     if (empty($moduleCode) || strlen($moduleCode) < 3) {
-        outAndExit("❌ Module code must be at least 3 characters.");
+        outAndExit("❌ Module --code is required and must be at least 3 characters.");
     }
 
-    if (trim($moduleName) === '') {
-        outAndExit("❌ Module name cannot be empty.");
+    if (empty($moduleName)) {
+        outAndExit("❌ Module --name is required.");
     }
 }
 
@@ -50,6 +39,35 @@ $className = generateClassName($moduleCode);
 
 $baseDir = dirname(__DIR__) . '/';
 $srcDir  = $baseDir . 'src/';
+
+/**
+ * Parses CLI arguments in --key=value format.
+ *
+ * Example:
+ *   --type=shipping --code=apog_cod --name="COD"
+ *
+ * @param array $argv
+ * @return array
+ */
+function parseNamedArgs(array $argv): array {
+    $params = [];
+
+    foreach ($argv as $arg) {
+        if (!str_starts_with($arg, '--')) continue;
+
+        $arg = substr($arg, 2);
+
+        if (str_contains($arg, '=')) {
+            [$key, $value] = explode('=', $arg, 2);
+            $params[$key] = $value;
+        } else {
+            // flag (e.g. --force)
+            $params[$arg] = true;
+        }
+    }
+
+    return $params;
+}
 
 /**
  * Recursively deletes a directory and all its contents.
@@ -330,8 +348,8 @@ switch ($type) {
         break;
 
     case 'shipping':
-        if (count($args) < 3) {
-            outAndExit("ℹ️  Usage: php bin/generator.php shipping <code> \"Name\" [--force]");
+        if (!$moduleCode || !$moduleName) {
+            outAndExit("ℹ️  Usage: php bin/generator.php --type=shipping --code=<code> --name=\"Name\" [--force]");
         }
 
         $target    = $srcDir . "apog_shipping_{$moduleCode}";
@@ -365,8 +383,8 @@ switch ($type) {
         break;
 
     case 'payment':
-        if (count($args) < 3) {
-            outAndExit("ℹ️  Usage: php bin/generator.php payment <code> \"Name\" [--force]");
+        if (!$moduleCode || !$moduleName) {
+            outAndExit("ℹ️  Usage: php bin/generator.php --type=payment  --code=<code> --name=\"Name\" [--force]");
         }
 
         $target    = $srcDir . "apog_payment_{$moduleCode}";
@@ -405,8 +423,8 @@ switch ($type) {
         break;
 
     case 'total':
-        if (count($args) < 3) {
-            outAndExit("ℹ️  Usage: php bin/generator.php total <code> \"Name\" [--force]");
+        if (!$moduleCode || !$moduleName) {
+            outAndExit("ℹ️  Usage: php bin/generator.php --type=total    --code=<code> --name=\"Name\" [--binding_payment=<code>] [--force]");
         }
 
         $target    = $srcDir . "apog_total_{$moduleCode}";
@@ -414,7 +432,7 @@ switch ($type) {
         /**
          * Optional binding input (future-proof)
          * example:
-         * php generator.php total cod_fee "COD Fee" cod
+         * php generator.php --type=total --code=cod_fee --name="COD Fee" --binding_payment=cod
          */
         out("🔗 Binding : " . ($bindingPayment ?? 'none'));
 
