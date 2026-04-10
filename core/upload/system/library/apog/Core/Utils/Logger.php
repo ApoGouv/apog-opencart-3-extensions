@@ -1,4 +1,10 @@
 <?php
+/**
+ * @package   Apog OpenCart 3 Extensions
+ * @author    Apostolos Gouvalas
+ * @copyright 2026 Apostolos Gouvalas
+ * @license   Apache-2.0
+ */
 
 namespace Apog\Core\Utils;
 

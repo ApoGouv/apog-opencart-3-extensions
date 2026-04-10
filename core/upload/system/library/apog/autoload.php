@@ -1,5 +1,10 @@
 <?php
-// system/library/apog/autoload.php
+/**
+ * @package   Apog OpenCart 3 Extensions
+ * @author    Apostolos Gouvalas
+ * @copyright 2026 Apostolos Gouvalas
+ * @license   Apache-2.0
+ */
 
 spl_autoload_register(function ($class) {
 
