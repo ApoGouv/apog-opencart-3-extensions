@@ -200,10 +200,15 @@ function runGenerator(
 ): void {
 
     $templateDir = $baseDir . 'generators/templates/' . $moduleDefinition['template'];
+    $templateDir = match ($type) {
+        ModuleType::CORE => $baseDir . 'core',
+        default          => $baseDir . 'generators/templates/' . $moduleDefinition['template'],
+    };
 
-    $outputDir = ($type === ModuleType::CORE)
-        ? $sourceDir . ($moduleCode)
-        : $sourceDir . 'apog_' . $moduleDefinition['template'] . '_' . $moduleCode;
+    $outputDir = match ($type) {
+        ModuleType::CORE => $sourceDir . $moduleCode,
+        default => $sourceDir . 'apog_' . $moduleDefinition['template'] . '_' . $moduleCode,
+    };
 
     $className = generateClassName($moduleCode);
 
