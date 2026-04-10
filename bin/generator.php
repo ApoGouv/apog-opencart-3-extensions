@@ -107,7 +107,9 @@ $bindingPaymentInput = $params['binding_payment'] ?? null;
 $bindingPayment      = normalizeBindingPayment($bindingPaymentInput);
 $force               = !empty($params['force']);
 
-$typeEnum = ModuleType::tryFrom($type);
+$typeEnum = is_string($type) && $type !== ''
+    ? ModuleType::tryFrom($type)
+    : null;
 
 if (!$typeEnum) {
     out("❌ Error: Unknown type '$type'");

@@ -54,7 +54,9 @@ $type       = $params['type'] ?? null;
 $moduleCode = normalizeCode($params['code'] ?? null);
 $all        = !empty($params['all']);
 
-$typeEnum = ModuleType::tryFrom($type);
+$typeEnum = is_string($type) && $type !== ''
+    ? ModuleType::tryFrom($type)
+    : null;
 
 $baseDir = dirname(__DIR__) . '/';
 $srcDir  = $baseDir . 'src/';
