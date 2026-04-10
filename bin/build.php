@@ -7,96 +7,203 @@ declare(strict_types=1);
 if (PHP_SAPI !== 'cli') exit("This script must be run from the command line.\n");
 if (!class_exists('ZipArchive')) exit("❌ Error: PHP ZipArchive extension is required.\n");
 
-$rawArgs = $argv;
-array_shift($rawArgs); // remove script name
+require_once __DIR__ . '/helpers/cli_helpers.php';
 
-$flags = array_filter($rawArgs, fn($arg) => str_starts_with($arg, '--'));
-$args  = array_values(array_filter($rawArgs, fn($arg) => !str_starts_with($arg, '--')));
+const HELP_TEXT = <<<TXT
+Apog Extension Builder
 
-$all     = in_array('--all', $flags, true);
+Usage:
+  php bin/build.php --type=core
+  php bin/build.php --type=shipping --code=<code>
+  php bin/build.php --type=payment  --code=<code>
+  php bin/build.php --type=total    --code=<code>
+  php bin/build.php --all
 
-if (empty($args) && !$all) {
-    out("ℹ️  Usage:");
-    out("  php bin/build.php core");
-    out("  php bin/build.php shipping <code>");
-    out("  php bin/build.php payment <code>");
-    out("  php bin/build.php total <code>");
-    out("  php bin/build.php --all");
-    exit(1);
+Options:
+  --type     Module type: core, shipping, payment, total
+  --code     Module code (required except core)
+  --all      Build all modules
+  --help     Show this help message
+
+Examples:
+  php bin/build.php --type=core
+  php bin/build.php --type=payment --code=cod
+  php bin/build.php --all
+TXT;
+
+enum ModuleType: string
+{
+    case CORE = 'core';
+    case SHIPPING = 'shipping';
+    case PAYMENT = 'payment';
+    case TOTAL = 'total';
 }
 
-$type    = $args[0] ?? null;
-$rawCode = $args[1] ?? null;
-$code    = normalizeCode($rawCode);
+/**
+ * -----------------------------
+ * CLI ENTRY POINT
+ * -----------------------------
+ */
+$params = parseNamedArgs($argv);
 
-if (!$all && $type === null) {
-    outAndExit("❌ Error: Missing module type.");
+if (!empty($params['help'])) {
+    outAndExit(HELP_TEXT, 0);
 }
 
-if ('core' !== $type) {
-    validateCode($code);
-}
+$type       = $params['type'] ?? null;
+$moduleCode = normalizeCode($params['code'] ?? null);
+$all        = !empty($params['all']);
+
+$typeEnum = ModuleType::tryFrom($type);
 
 $baseDir = dirname(__DIR__) . '/';
 $srcDir  = $baseDir . 'src/';
 $distDir = $baseDir . 'dist/';
 
 if (!is_dir($distDir) && !mkdir($distDir, 0755, true)) {
-    exit("❌ Error: Failed to create dist directory: $distDir\n");
+    outAndExit("❌ Error: Failed to create dist directory: $distDir", 1);
 }
 
 /**
- * Outputs a message to CLI with newline.
- *
- * @param string $message Message to display
- *
- * @return void
+ * Validate input
  */
-function out($message = '') {
-    echo $message . PHP_EOL;
+if ($all && (!empty($typeEnum) || !empty($moduleCode))) {
+    out("❌ Error: --all cannot be combined with --type or --code.");
+    outAndExit(HELP_TEXT, 1);
 }
 
-/**
- * Outputs a message and exits the script.
- *
- * @param string $message Message to display
- * @param int $exit_code Exit status code (default: 0)
- *
- * @return void
- */
-function outAndExit($message = '', $exit_code = 0) {
-    out($message);
-    exit($exit_code);
+if (!$all && !$typeEnum) {
+    out("❌ Error: Missing module --type.");
+    outAndExit(HELP_TEXT, 1);
 }
 
-/**
- * Normalizes a module code to a safe format.
- *
- * Rules:
- * - lowercase
- * - spaces and dashes → underscores
- * - removes invalid characters
- * - collapses multiple underscores
- *
- * @param string $code Raw module code
- *
- * @return string Normalized code
- */
-function normalizeCode(?string $code): string {
-    $code = (string) $code;
-    $code = trim($code);
-    $code = strtolower($code);
-    $code = str_replace(['-', ' '], '_', $code);
-    $code = preg_replace('/[^a-z0-9_]/', '', $code); // remove anything weird
-    $code = preg_replace('/_+/', '_', $code); // collapse multiple underscores
-    return trim($code, '_');
-}
-
-function validateCode(string $code): void {
-    if ($code === '' || strlen($code) < 3) {
-        outAndExit("❌ Module code must be at least 3 characters.");
+if ($typeEnum !== ModuleType::CORE && !$all) {
+    try {
+        validateCode($moduleCode);
+    } catch (Throwable $e) {
+        outAndExit("❌ " . $e->getMessage(), 1);
     }
 }
+
+/**
+ * Execute
+ */
+if ($all) {
+    runBuildAll($srcDir, $distDir);
+    exit(0);
+}
+
+$moduleName = resolveModuleName($typeEnum, $moduleCode);
+runBuild($moduleName, $srcDir, $distDir);
+
+
+/**
+ * Resolves the module folder name based on type and optional code.
+ *
+ * Generates the expected module directory name used in the src/ folder.
+ * For non-core modules, the code is appended to the module type.
+ *
+ * Examples:
+ * - core            → apog_core
+ * - shipping + acs  → apog_shipping_acs
+ * - payment + cod   → apog_payment_cod
+ *
+ * @param ModuleType $type Module type enum
+ * @param string|null $code Module code (required for non-core types)
+ *
+ * @return string Resolved module folder name
+ */
+function resolveModuleName(ModuleType $type, ?string $code): string {
+    return match ($type) {
+        ModuleType::CORE     => 'apog_core',
+        ModuleType::SHIPPING => "apog_shipping_$code",
+        ModuleType::PAYMENT  => "apog_payment_$code",
+        ModuleType::TOTAL    => "apog_total_$code",
+    };
+}
+
+/**
+ * Builds all valid modules found in the src directory.
+ *
+ * - Scans for supported module naming patterns
+ * - Executes build process for each module
+ * - Continues execution even if individual module builds fail
+ *
+ * Outputs a summary block upon completion.
+ *
+ * @param string $srcDir Absolute path to the source modules directory
+ * @param string $distDir Absolute path to the output (dist) directory
+ *
+ * @return void
+ */
+function runBuildAll(string $srcDir, string $distDir): void {
+    cliPrintBlock([
+        "⚙️  Building all modules"
+    ]);
+
+    $modules = getAllModules($srcDir);
+
+    if (empty($modules)) {
+        outAndExit("❌ Error: No modules found in src directory.", 1);
+    }
+
+    foreach ($modules as $moduleName) {
+        try {
+            runBuild($moduleName, $srcDir, $distDir);
+        } catch (Throwable $e) {
+            out("❌ Error building {$moduleName}: " . $e->getMessage());
+        }
+    }
+
+    cliPrintBlock([
+        "✅ All modules processed"
+    ]);
+}
+
+/**
+ * Executes the build process for a single module.
+ *
+ * Steps:
+ * - Validates module structure
+ * - Prepares build configuration
+ * - Generates ZIP package
+ * - Outputs build summary (header + footer)
+ *
+ * @param string $moduleName Module folder name (e.g., apog_core, apog_payment_cod)
+ * @param string $srcDir Absolute path to the source directory
+ * @param string $distDir Absolute path to the output (dist) directory
+ *
+ * @return void
+ */
+function runBuild(
+    string $moduleName,
+    string $srcDir,
+    string $distDir
+): void {
+    $source = $srcDir . $moduleName;
+    $zipPath = $distDir . $moduleName . '.ocmod.zip';
+
+    validateModule($source);
+
+    $config = [
+        'name'             => $moduleName,
+        'source'           => $source,
+        'output_file_path' => $zipPath,
+    ];
+
+    $start = microtime(true);
+
+    printBuildHeader($config);
+
+    $result = buildPackage($source, $zipPath);
+
+    $config['fileCount']   = $result['count'];
+    $config['success']     = $result['success'];
+    $config['elapsedTime'] = round(microtime(true) - $start, 3);
+
+    printBuildFooter($config);
+}
+
 
 /**
  * Builds a ZIP package from a module directory.
@@ -108,49 +215,59 @@ function validateCode(string $code): void {
  * @param string $source Absolute path to the module source directory
  * @param string $zipPath Absolute path where the ZIP file will be created
  *
- * @return int Number of files successfully added to the archive
+ * @return array{count:int,success:bool} Execution results containing file count and status
  */
-function buildPackage($source, $zipPath) {
+function buildPackage(string $source, string $zipPath): array {
     if (file_exists($zipPath)) {
         out("⚠️  Warning: Overwriting existing package: " . basename($zipPath));
         unlink($zipPath);
     }
 
-    $fileCount = 0;
-
     $zip = new ZipArchive();
+
     if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
         out("❌ Error: Could not create zip file at $zipPath");
-        return 0;
+        return ['count' => 0, 'success' => false];
     }
-
 
     $files = new RecursiveIteratorIterator(
         new RecursiveDirectoryIterator($source, RecursiveDirectoryIterator::SKIP_DOTS),
         RecursiveIteratorIterator::LEAVES_ONLY
     );
 
+    $fileCount = 0;
+
     foreach ($files as $file) {
         $filePath = $file->getRealPath();
+
+        if ($filePath === false) {
+            $zip->close();
+            outAndExit("❌ Error: Failed to read file path from $source", 1);
+        }
 
         // Relative path inside zip
         $relativePath = ltrim(substr($filePath, strlen($source)), DIRECTORY_SEPARATOR);
 
         if (!$zip->addFile($filePath, $relativePath)) {
-            out("❌ Error: Failed to add file to archive: $filePath\n");
             $zip->close();
-            return 0;
+            out("❌ Error: Failed to add file: $filePath");
+            return ['count' => 0, 'success' => false];
         }
+
         $fileCount++;
     }
 
     $zip->close();
+
     out("📦 Package created: " . basename($zipPath));
-    return $fileCount;
+
+    return ['count' => $fileCount, 'success' => true];
 }
 
+
 /**
- * Validates that a module directory has the required OpenCart structure.
+ * Validates that a module directory has the minimum 
+ * required OpenCart installer structure.
  *
  * Required:
  * - path to the module directory
@@ -161,7 +278,7 @@ function buildPackage($source, $zipPath) {
  *
  * @return void
  */
-function validateModule($path) {
+function validateModule(string $path): void {
     if (!is_dir($path)) {
         outAndExit("❌ Error: Module not found: $path");
     }
@@ -176,56 +293,29 @@ function validateModule($path) {
 }
 
 /**
- * Prints a formatted header block for the build process.
+ * Checks whether a directory name is a valid module name.
  *
- * Displays module name, source path, and output path
- * in a consistent CLI-friendly format.
+ * @param string $name Directory name
  *
- * @param array $config Configuration array with:
- *  - string 'name'   Module name
- *  - string 'source' Source directory path
- *  - string 'output' Output ZIP file path
- *
- * @return void
+ * @return bool
  */
-function printHeader(array $config): void {
-    out("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    out("⚙️  Building Module Package");
-    out("📦 Name  : {$config['name']}");
-    out("📁 Source: {$config['source']}");
-    out("📂 Output: {$config['output']}");
-    out("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-}
+function isValidModuleName(string $name): bool {
+    foreach (ModuleType::cases() as $type) {
+        if ($type === ModuleType::CORE) {
+            if ($name === "apog_{$type->value}") {
+                return true;
+            }
+            continue;
+        }
 
-/**
- * Prints a formatted footer block after the build process.
- *
- * Displays:
- * - Success or error status
- * - Output file location
- * - Number of files included
- * - Execution time
- *
- * @param array $config Configuration array with:
- *  - string 'output'      Output ZIP file path
- *  - int    'fileCount'   Number of files added to archive
- *  - float  'elapsedTime' Execution time in seconds
- *
- * @return void
- */
-function printFooter(array $config): void {
-    out("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        $prefix = "apog_{$type->value}_";
 
-    if ($config['fileCount'] === 0) {
-        out("❌ Error       : No files were added to the package. Check the source directory.");
-    } else {
-        out("✅ Success     : Package created");
+        if (str_starts_with($name, $prefix)) {
+            return true;
+        }
     }
 
-    out("📂 Location    : {$config['output']}");
-    out("📄 Files       : {$config['fileCount']}");
-    out("⏱️ Completed in: {$config['elapsedTime']}s");
-    out("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    return false;
 }
 
 /**
@@ -254,7 +344,7 @@ function getAllModules(string $srcDir): array {
         if (!is_dir($fullPath)) continue;
 
         // Only include valid module naming
-        if ($item === 'apog_core' || preg_match('/^apog_(shipping|payment|total)_/', $item)) {
+        if (isValidModuleName($item)) {
             $modules[] = $item;
         }
     }
@@ -263,102 +353,55 @@ function getAllModules(string $srcDir): array {
 }
 
 /**
- * Builds a module package by name.
+ * Prints the build header block.
  *
- * @param string $moduleName Module folder name (e.g., apog_core, apog_shipping_acs)
- * @param string $srcDir Base src directory
- * @param string $distDir Output directory
+ * Displays package build context in a structured CLI format.
+ *
+ * @param array $config Configuration array with:
+ *  - string 'name'             Module name
+ *  - string 'source'           Source directory path
+ *  - string 'output_file_path' Output ZIP file path
  *
  * @return void
  */
-function buildModule(string $moduleName, string $srcDir, string $distDir): void {
-    $source = $srcDir . $moduleName;
-    $zipPath = $distDir . $moduleName . '.ocmod.zip';
-
-    validateModule($source);
-
-    $config = [
-        'name'   => $moduleName,
-        'source' => $source,
-        'output' => $zipPath,
+function printBuildHeader(array $config): void {
+    $lines = [
+        "⚙️  Building module package: {$config['name']}",
+        "📁 Source: {$config['source']}",
+        "📂 Output: {$config['output_file_path']}",
     ];
 
-    $startTime = microtime(true);
-
-    printHeader($config);
-
-    $fileCount = buildPackage($source, $zipPath);
-
-    $elapsedTime = round(microtime(true) - $startTime, 3);
-
-    $config['fileCount'] = $fileCount;
-    $config['elapsedTime'] = $elapsedTime;
-
-    printFooter($config);
+    cliPrintBlock($lines);
 }
 
+/**
+ * Prints the build footer block after execution.
+ *
+ * Displays build result summary including:
+ * - success or error state
+ * - file count
+ * - output location
+ * - execution time
+ *
+ * @param array $config Configuration array with:
+ *  - string 'output_file_path' Output ZIP file path
+ *  - int    'fileCount'   Number of files added to archive
+ *  - float  'elapsedTime' Execution time in seconds
+ *
+ * @return void
+ */
+function printBuildFooter(array $config): void {
+    $lines = [];
 
-if ($all) {
-    out("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    out("⚙️ Building all modules");
-    out("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-
-    $modules = getAllModules($srcDir);
-
-    if (empty($modules)) {
-        outAndExit("❌ Error: No modules found in src directory.");
+    if ($config['fileCount'] === 0) {
+        $lines[] = "❌ Error       : No files were added to the package. Check the source directory.";
+    } else {
+        $lines[] = "✅ Success     : Package created";
     }
 
-    foreach ($modules as $moduleName) {
-        try {
-            buildModule($moduleName, $srcDir, $distDir);
-        } catch (Throwable $e) {
-            out("❌ Error building {$moduleName}: " . $e->getMessage());
-        }
-    }
+    $lines[] = "📂 Location    : {$config['output_file_path']}";
+    $lines[] = "📄 Files       : {$config['fileCount']}";
+    $lines[] = "⏱️ Completed in: {$config['elapsedTime']}s";
 
-    out("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    out("✅ All modules processed");
-    out("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-
-    exit(0);
-}
-
-switch ($type) {
-
-    case 'core':
-        $moduleName = 'apog_core';
-
-        buildModule($moduleName, $srcDir, $distDir);
-        break;
-
-    case 'shipping':
-        if (count($args) < 2) {
-            outAndExit("ℹ️  Usage: php bin/build.php shipping <code>");
-        }
-
-        $moduleName = "apog_shipping_$code";
-        buildModule($moduleName, $srcDir, $distDir);
-        break;
-
-    case 'payment':
-        if (count($args) < 2) {
-            outAndExit("ℹ️  Usage: php bin/build.php payment <code>");
-        }
-
-        $moduleName = "apog_payment_$code";
-        buildModule($moduleName, $srcDir, $distDir);
-        break;
-
-    case 'total':
-        if (count($args) < 2) {
-            outAndExit("ℹ️  Usage: php bin/build.php total <code>");
-        }
-
-        $moduleName = "apog_total_$code";
-        buildModule($moduleName, $srcDir, $distDir);
-        break;
-
-    default:
-        outAndExit("❌ Error: Unknown type '$type'. Use 'core', 'shipping', 'payment', or 'total'.");
+    cliPrintBlock($lines);
 }
