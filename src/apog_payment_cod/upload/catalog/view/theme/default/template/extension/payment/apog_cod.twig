@@ -1,13 +1,13 @@
-<h2>{{ text_instruction }}</h2>
-
 {% if instructions %}
+  <h2>{{ text_instruction }}</h2>
+
   <div class="well well-sm">
     <p>{{ instructions }}</p>
   </div>
-{% endif %}
-
-{% if text_payment %}
-  <p>{{ text_payment }}</p>
+  
+  {% if text_payment %}
+    <p>{{ text_payment }}</p>
+  {% endif %}
 {% endif %}
 
 <div class="buttons">
