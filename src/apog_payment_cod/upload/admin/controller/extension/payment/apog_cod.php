@@ -1,6 +1,25 @@
 <?php
+/**
+ * Include our library bootstrap to set up autoloading and any necessary initialization.
+ * This ensures that all Apog traits and helper classes are available for use in this controller.
+ */
 require_once(DIR_SYSTEM . 'library/apog/bootstrap.php');
 
+/**
+ * Class ControllerExtensionPaymentApogCod
+ *
+ * Administrative controller for the Cash on Delivery payment module.
+ *
+ * Responsibilities:
+ * - Handles module configuration form rendering and submission
+ * - Loads and prepares configuration data for the admin view
+ * - Integrates shared logic via reusable Apog traits
+ *
+ * Traits used:
+ * - ControllerHelperTrait: UI helpers (breadcrumbs, actions, errors)
+ * - ConfigHelperTrait: Configuration key/value handling
+ * - FormOptionsTrait: Dropdown and auxiliary data (stores, geo zones, etc.)
+ */
 class ControllerExtensionPaymentApogCod extends Controller {
     use Apog\Traits\Back\Controller\ControllerHelperTrait;
     use Apog\Traits\Back\Controller\ConfigHelperTrait;
