@@ -86,17 +86,59 @@ class TotalValidator extends ApogExtensionBase {
         return $allowed;
     }
 
+    /**
+     * Checks if the current customer group is allowed for this total method.
+     *
+     * This method evaluates the customer group provided via runtime context
+     * against the configured excluded customer group list using the shared
+     * exclusion rule defined in ApogExtensionBase.
+     *
+     * The customer group is expected to be pre-resolved and passed through
+     * the checkout/total calculation context (typically via TotalService).
+     *
+     * Supports:
+     * - OpenCart core checkout flow
+     * - Journal Checkout AJAX updates
+     * - Guest checkout sessions
+     * - Runtime totals recalculation context
+     *
+     * @param array $context Runtime checkout context containing:
+     *                       - customer_group_id (int) Resolved customer group ID
+     *
+     * @return bool True if allowed, false if excluded.
+     */
     private function isCustomerGroupAllowed(array $context): bool {
-        $excluded = array_map('intval', (array)$this->cfg('excluded_customer_groups', []));
+        $excludedGroupIds = array_map(
+            'intval',
+            (array)$this->cfg('excluded_customer_groups', [])
+        );
 
-        $groupId = $context['customer_group_id']
-            ?? (int)$this->config->get('config_customer_group_id');
+        $currentCustomerGroupId = (int)$context['customer_group_id'];
 
-        $allowed = empty($excluded) || !in_array($groupId, $excluded, true);
+        // No restrictions configured > allow immediately
+        if (empty($excludedGroupIds)) {
+            $this->log(
+                "Customer group check skipped (no exclusions set). Current Customer Group: {$currentCustomerGroupId}",
+                'debug'
+            );
+
+            return true;
+        }
+
+        // CASE 2: Check exclusion rule
+        $isExcluded = in_array($currentCustomerGroupId, $excludedGroupIds, true);
+        $allowed = !$isExcluded;
+
+        $this->log("Customer group check", 'debug');
+        $this->log("- Resolved group: {$currentCustomerGroupId}", 'debug');
+        $this->log("- Excluded groups: [" . implode(',', $excludedGroupIds) . "]", 'debug');
+        $this->log("- Result: " . ($allowed ? 'ALLOWED' : 'BLOCKED'), 'debug');
 
         if (!$allowed) {
-            $this->log("Customer group {$groupId} excluded", 'debug');
+            $this->log("BLOCKED: Customer group {$currentCustomerGroupId} is excluded: [" . implode(',', $excludedGroupIds) . "]", 'debug');
         }
+
+        $this->log("===============================================", 'debug');
 
         return $allowed;
     }

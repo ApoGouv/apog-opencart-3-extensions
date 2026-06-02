@@ -101,6 +101,67 @@ abstract class ApogExtensionBase {
     }
 
     /**
+     * Resolves the effective customer group ID for the current checkout context.
+     *
+     * This method determines the active customer group by inspecting multiple
+     * possible sources in order of priority, taking into account both
+     * OpenCart core behavior and Journal checkout AJAX overrides.
+     *
+     * Priority order:
+     *
+     * 1. POST data (direct user selection during checkout)
+     *    - `customer_group_id`
+     *    - `order_data[customer_group_id]` (Journal AJAX structure)
+     *
+     * 2. Session data (persisted checkout state)
+     *    - `session->data['customer_group_id']`
+     *    - `session->data['order_data']['customer_group_id']`
+     *
+     * 3. Logged-in customer account group
+     *    - `$this->customer->getGroupId()`
+     *
+     * 4. Runtime config fallback (OpenCart/Journal mutated state)
+     *    - `config_customer_group_id`
+     *
+     * Note:
+     * - Journal Checkout may mutate `config_customer_group_id` during AJAX sync,
+     *   making it reflect the latest checkout state rather than store configuration.
+     * - This method ensures compatibility with both default OpenCart checkout
+     *   and Journal-based checkout flows.
+     * - Returned value is always cast to integer for strict comparison safety.
+     *
+     * @return int The resolved customer group ID for the current request context.
+     */
+    protected function resolveCustomerGroupId(): int {
+        // 1. POST (user action in current request)
+        if (isset($this->request->post['customer_group_id'])) {
+            return (int)$this->request->post['customer_group_id'];
+        }
+
+        // Journal uses nested structure in some AJAX calls
+        if (isset($this->request->post['order_data']['customer_group_id'])) {
+            return (int)$this->request->post['order_data']['customer_group_id'];
+        }
+
+        // 2. Session (OpenCart / Journal persistence layer)
+        if (isset($this->session->data['customer_group_id'])) {
+            return (int)$this->session->data['customer_group_id'];
+        }
+
+        if (isset($this->session->data['order_data']['customer_group_id'])) {
+            return (int)$this->session->data['order_data']['customer_group_id'];
+        }
+
+        // 3. Logged-in customer
+        if ($this->customer->isLogged()) {
+            return (int)$this->customer->getGroupId();
+        }
+
+        // 4. Journal / OpenCart runtime mutated config (IMPORTANT FALLBACK)
+        return (int)$this->config->get('config_customer_group_id');
+    }
+
+    /**
      * Logs a message if module logging is enabled
      *
      * @param string $message Text to log
