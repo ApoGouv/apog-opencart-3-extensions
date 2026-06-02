@@ -148,9 +148,7 @@ class TotalService extends ApogExtensionBase {
      * @return int
      */
     private function getCustomerGroupId(): int {
-        return $this->customer->isLogged()
-            ? (int)$this->customer->getGroupId()
-            : (int)$this->config->get('config_customer_group_id');
+        return $this->resolveCustomerGroupId();
     }
 
     /**

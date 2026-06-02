@@ -89,22 +89,52 @@ class ShippingValidator extends ApogExtensionBase {
     }
 
     /**
-     * Checks if the current customer group is allowed
+     * Checks if the current customer group is allowed for this shipping method.
      *
-     * @return bool
+     * This method evaluates the resolved checkout customer group against the
+     * configured excluded customer group list using the shared exclusion rule
+     * defined in ApogExtensionBase.
+     *
+     * Supports:
+     * - OpenCart core checkout flow
+     * - Journal Checkout AJAX updates
+     * - Guest checkout sessions
+     * - Logged-in customers
+     *
+     * @return bool True if allowed, false if excluded.
      */
     private function isCustomerGroupAllowed(): bool {
-        $excluded_groups = array_map('intval', (array)$this->cfg("excluded_customer_groups", []));
+        $excludedGroupIds = array_map(
+            'intval',
+            (array)$this->cfg('excluded_customer_groups', [])
+        );
 
-        $group_id = $this->customer->isLogged()
-            ? $this->customer->getGroupId()
-            : $this->config->get('config_customer_group_id');
+        $currentCustomerGroupId = $this->resolveCustomerGroupId();
 
-        $allowed = empty($excluded_groups) || !in_array($group_id, $excluded_groups, true);
+        // No restrictions configured > allow immediately
+        if (empty($excludedGroupIds)) {
+            $this->log(
+                "Customer group check skipped (no exclusions set). Current Customer Group: {$currentCustomerGroupId}",
+                'debug'
+            );
+
+            return true;
+        }
+
+        // CASE 2: Check exclusion rule
+        $isExcluded = in_array($currentCustomerGroupId, $excludedGroupIds, true);
+        $allowed = !$isExcluded;
+
+        $this->log("Customer group check", 'debug');
+        $this->log("- Resolved group: {$currentCustomerGroupId}", 'debug');
+        $this->log("- Excluded groups: [" . implode(',', $excludedGroupIds) . "]", 'debug');
+        $this->log("- Result: " . ($allowed ? 'ALLOWED' : 'BLOCKED'), 'debug');
 
         if (!$allowed) {
-            $this->log("Customer group {$group_id} is excluded: [" . implode(',', $excluded_groups) . "]", 'debug');
+            $this->log("BLOCKED: Customer group {$currentCustomerGroupId} is excluded: [" . implode(',', $excludedGroupIds) . "]", 'debug');
         }
+
+        $this->log("===============================================", 'debug');
 
         return $allowed;
     }
